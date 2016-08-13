@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+   <link href="../css/main.css" rel="stylesheet" />
+   <link href="../css/bootstrap.min.css" rel="stylesheet" />
+   <link href="../css/bootstrap-theme.min.css" rel="stylesheet" />
+   <link href="../css/bootstrap-callout.css" rel="stylesheet" />
+   <link href="../css/prism.css" rel="stylesheet" />
+   <link href="../css/tree.css" rel="stylesheet" />
+   <script src="../js/jquery-2.1.1.min.js"></script>
+   <script src="../js/bootstrap.min.js"></script>
+   <script src="../js/prism.js"></script>
+   <script src="../js/tree.js"></script>
+   %%(head)s
+</head>
+<body>
+<!-- <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+withNavBar
+
+</div>
+ -->
+
+<div id="sidebar" class="sidebar" role="complementary">
+   <h4>%%(toc1Title)s</h4>
+   <div class="tree">
+      %%(toc1)s <!-- this token been replaced on second iteration, so need to be escaped -->
+   </div>
+
+   <h4>%(toc2Title)s</h4>
+   <div class="tree interactive collapsable">
+      %(toc2)s
+   </div>
+</div>
+
+<div class="content">
+   %(content)s
+</div>
+
+</body>
+</html>
