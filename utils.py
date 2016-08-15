@@ -113,6 +113,13 @@ def strGet(text, pref='', suf='', index=0, default='', returnOnlyStr=True):
    if returnOnlyStr: return s
    else: return i1+len(pref), i2, s
 
+
+def get_documentation_of_module(module):
+   source_code_of_module = inspect.getsource(module)
+   documentation_of_module = strGet(source_code_of_module, '"""\n', '\n"""') or strGet(source_code_of_module, '\'\'\'\n', '\n\'\'\'') or ''
+   return documentation_of_module
+
+
 def oGet(o, key, default=None):
    #get val by key from object(list,dict), and default if key not exist
    try: return o[key]

@@ -2,13 +2,14 @@
 import sys, inspect
 from string import strip
 from utils import *
+from utils import get_documentation_of_module
 
 class pydoc2api(object):
    def __init__(self, module, obj=None):
       obj=obj or ''
       self.modulePath=''
       if isString(module):
-         if '.' in module:
+         if '.' in module:  #
             obj=obj or strGet(module, '.')
             module=strGet(module, '', '.')
          self.modulePath=module
@@ -21,7 +22,8 @@ class pydoc2api(object):
       if len(parts):
          for k in parts:
             if isClass(module): module=module.__dict__[k]
-            else: module=getattr(module, k)
+            else:
+               module=getattr(module, k)
       self.obj=module
 
    def docSplit(self, doc):
@@ -120,6 +122,7 @@ class pydoc2api(object):
       if isFunction(cb): res=cb(res)
       return res
 
+
    def objInfo(self, obj):
       res={
          'name':obj.__name__,
@@ -151,15 +154,18 @@ class pydoc2api(object):
          res['inherit']=[str(s) for s in obj.__bases__]
       # извлекаем общий комментарий
       if isModule(obj):
-         docstr=strGet(inspect.getsource(obj), '"""\n', '\n"""') or ''
+         docstr = get_documentation_of_module(obj)
+         print docstr
       else:
          docstr=inspect.getdoc(obj) or inspect.getcomments(obj) or ''
       res['docstr']=docstr
       # формируем строку инициализации
-      if isModule(obj): f=obj.__name__
+      if isModule(obj):
+         f=obj.__name__
       elif isClass(obj):
          f=getattr(obj, '__dict__', {}).get('__init__', None)
-      else: f=obj
+      else:
+         f=obj
       if isFunction(f):
          try: inspect.getargspec(f)
          except: f=None
@@ -179,6 +185,7 @@ class pydoc2api(object):
       # извлекаем описание обьекта
       descr, other=self.docSplit(docstr)
       res['descr']=descr
+
       # извлекаем различные части описания обьекта
       for i, s in enumerate(other):
          if self.parseParam(other, i,
@@ -196,6 +203,7 @@ class pydoc2api(object):
          elif self.parseLicense(other, i,
             cb=lambda ss: False if ss is False else (res.__setitem__('license', ss) or True)): pass
       # если не задано возвращаемое значение для класса, указываем
+
       if not res['return'] and isClass(obj):
          res['return']={'type':'instance', 'descr':'Instance of class '+obj.__name__}
       return dict2magic(res, True)
@@ -208,6 +216,7 @@ class pydoc2api(object):
    def summary(self, obj=None, moduleWhitelist=None, moduleBlacklist=['__builtin__', None], moduleWhitelistCB=None, moduleBlacklistCB=None):
       obj=obj or self.obj
       res=self.objInfo(obj)
+      # print(res['docstr'])
       if not isClass(obj) and not isModule(obj): return res
       # глубокая проверка доступна только для модулей и классов
       res['tree']={
