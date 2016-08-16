@@ -4,25 +4,43 @@ from string import strip
 from utils import *
 
 class pydoc2api(object):
-   def __init__(self, module, obj=None):
-      obj=obj or ''
-      self.modulePath=''
-      if isString(module):
-         if '.' in module:
-            obj=obj or strGet(module, '.')
-            module=strGet(module, '', '.')
-         self.modulePath=module
-         module=__import__(module)
+   def __init__(self, pathOrObj, childPath=None):
+      self.obj, self.objectPath=self.importChild(pathOrObj, childPath)
+      # obj=obj or ''
+      # self.modulePath=''
+      # if isString(module):
+      #    if '.' in module:
+      #       obj=obj or strGet(module, '.')  #переходим на уровень вглубь
+      #    self.modulePath, module=self.importChild(module)
+      # parts=obj.split('.')
+      # if not parts[0]: parts=parts[1:]
+      # self.objectPath='.'.join(parts)
+      # if len(parts):
+      #    for k in parts:
+      #       if isClass(module): module=module.__dict__[k]  #будем обрабатывать не весь модуль, а только класс
+      #       else: module=getattr(module, k)  #переходим в дочерний модуль
+      # self.obj=module
+
+   def importChild(self, pathOrObj, childPath=None):
+      childPath=childPath or ''
+      if isString(pathOrObj):
+         # if '.' in pathOrObj:
+         #    childPath=childPath or strGet(pathOrObj, '.')  #переходим на уровень вглубь
+         #    pathOrObj=strGet(pathOrObj, '', '.')
+         # pathOrObj=__import__(pathOrObj)
          # import imp
-         # module=imp.load_source('', module)
-      parts=obj.split('.')
-      if not parts[0]: parts=parts[1:]
-      self.objectPath='.'.join(parts)
+         # pathOrObj=imp.load_source('', pathOrObj)
+         import importlib
+         pathOrObj=importlib.import_module(pathOrObj)
+      parts=childPath.split('.')
+      if not parts[0]:
+         parts=parts[1:]
+         childPath='.'.join(parts)
       if len(parts):
          for k in parts:
-            if isClass(module): module=module.__dict__[k]
-            else: module=getattr(module, k)
-      self.obj=module
+            if isClass(pathOrObj): pathOrObj=pathOrObj.__dict__[k]  #будем обрабатывать не весь модуль, а только класс
+            else: pathOrObj=getattr(pathOrObj, k)  #переходим в дочерний модуль
+      return pathOrObj, childPath
 
    def docSplit(self, doc):
       lines=strip(doc).split('\n\n')
@@ -205,11 +223,11 @@ class pydoc2api(object):
       if obj.__name__.startswith('_'): return 'private'
       return 'public'
 
-   def summary(self, obj=None, moduleWhitelist=None, moduleBlacklist=['__builtin__', None], moduleWhitelistCB=None, moduleBlacklistCB=None):
+   def summary(self, obj=None, moduleWhitelist=None, moduleBlacklist=['__builtin__', None], moduleWhitelistCB=None, moduleBlacklistCB=None, _oCache=None, _mAdded=None):
       obj=obj or self.obj
       res=self.objInfo(obj)
-      if not isClass(obj) and not isModule(obj): return res
       # глубокая проверка доступна только для модулей и классов
+      if not isClass(obj) and not isModule(obj): return res
       res['tree']={
          'classes':{},
          'methods':{
@@ -225,47 +243,61 @@ class pydoc2api(object):
          'modules':{},
          # 'vars':{}
       }
-      # ищем и обрабатываем дочерние модули
-      mCache=[]
-      for k, v in inspect.getmembers(obj):
+      # ищем и обрабатываем дочерние сущности
+      _oCache=_oCache or {}
+      _mAdded=_mAdded or []
+      allChilds=inspect.getmembers(obj)
+      for k, v in allChilds:
          if isModule(v):
-            if v.__name__ in mCache: continue
             if isModuleBuiltin(v) or v==obj: continue
             if isModule(obj) and obj.__name__+'.__init__'==v.__name__: continue
-            mCache.append(v.__name__)
             m=v.__name__
          else:
             m=getattr(v, '__module__', None)
-            if m in mCache: continue
-         # проверка, принадлежит ли данный обьект указанным модулям
+         # проверка, принадлежит ли данная сущность рашрешенным модулям
          if 'self' in moduleWhitelist and isModule(obj) and m==obj.__name__: pass
          elif 'self' in moduleWhitelist and not isModule(obj) and m==obj.__module__: pass
          else:
-            if m is None: m=[None]
+            if m is None: mArr=[None]
             elif '.' in m:
                tArr=m.split('.')
-               m=[m]+['.'.join(tArr[:i+1])+'.' for i in xrange(len(tArr)-1)]
-            else: m=[m]
-            if moduleWhitelist and 'self.' in moduleWhitelist and obj.__name__+'.' in m: pass
-            elif moduleWhitelist and not(set(m) & set(moduleWhitelist)): continue
+               mArr=[m]+['.'.join(tArr[:i+1])+'.' for i in xrange(len(tArr)-1)]
+            else: mArr=[m]
+            if moduleWhitelist and 'self.' in moduleWhitelist and obj.__name__+'.' in mArr: pass
+            elif moduleWhitelist and not(set(mArr) & set(moduleWhitelist)): continue
             elif not moduleWhitelist:
-               if moduleBlacklist and (set(m) & set(moduleBlacklist)): continue
+               if moduleBlacklist and (set(mArr) & set(moduleBlacklist)): continue
          # дополнительная проверка через коллбек
          if isFunction(moduleWhitelistCB) and not moduleWhitelistCB(obj, k, v, m): continue
          elif isDict(moduleWhitelistCB) and isModule(obj) and obj.__name__ in moduleWhitelistCB:
             if not moduleWhitelistCB[obj.__name__](obj, k, v, m): continue
-         # обрабатываем обьект
-         if isClass(v):
-            res['tree']['classes'][k]=self.summary(v, moduleWhitelist=moduleWhitelist, moduleBlacklist=moduleBlacklist, moduleWhitelistCB=moduleWhitelistCB, moduleBlacklistCB=moduleBlacklistCB)
-         elif isFunction(v):
-            s=self.objInfo(v)
-            t=self.methodType(v)
-            if t=='public' and not s.docstr: t='undoc'
-            res['tree']['methods'][t][k]=s
-            res['tree']['methods'][t+'Order'].append(k)  #! нужно брать порядок из исходника
-         elif isModule(v):
-            print v.__name__
-            res['tree']['modules'][v.__name__]=self.summary(v, moduleWhitelist=moduleWhitelist, moduleBlacklist=moduleBlacklist, moduleWhitelistCB=moduleWhitelistCB, moduleBlacklistCB=moduleBlacklistCB)
+         # обрабатываем сущность
+         if isModule(v):
+            # защита от дублей
+            s='m_%s'%(m)
+            if s in _oCache: continue
+            _oCache[s]=v
+            res['tree']['modules'][v.__name__]=self.summary(v, moduleWhitelist=moduleWhitelist, moduleBlacklist=moduleBlacklist, moduleWhitelistCB=moduleWhitelistCB, moduleBlacklistCB=moduleBlacklistCB, _oCache=_oCache, _mAdded=_mAdded)
+         else:
+            # если сущность не из текущего модуля, добавляем на обработку её родной модуль
+            if isModule(obj) and m and m!=obj.__name__:
+               if m not in _oCache and m not in _mAdded:
+                  allChilds.append((m.split('.')[-1], self.importChild(m)[0]))
+                  _mAdded.append(m)
+            else:
+               # защита от дублей
+               s='o_%s.%s'%(m, k)
+               if s in _oCache: continue
+               _oCache[s]=v
+               # продолжаем обработку
+               if isClass(v):
+                  res['tree']['classes'][k]=self.summary(v, moduleWhitelist=moduleWhitelist, moduleBlacklist=moduleBlacklist, moduleWhitelistCB=moduleWhitelistCB, moduleBlacklistCB=moduleBlacklistCB, _oCache=_oCache, _mAdded=_mAdded)
+               elif isFunction(v):
+                  s=self.objInfo(v)
+                  t=self.methodType(v)
+                  if t=='public' and not s.docstr: t='undoc'
+                  res['tree']['methods'][t][k]=s
+                  res['tree']['methods'][t+'Order'].append(k)  #! нужно брать порядок из исходника
          # else:
             # #! не забыть добавить None в moduleWhitelist
             # if k in ['__builtins__', '__doc__', '__file__', '__name__', '__package__', '__path__']: continue

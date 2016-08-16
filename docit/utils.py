@@ -3,7 +3,7 @@
 
 import sys, os, time, datetime, json, inspect
 
-__all__=['PY_V', 'magicDict', 'dict2magic', 'console', 'getms', 'reprEx', 'strGet', 'fileGet', 'fileAppend', 'fileWrite', 'pathList', 'oGet', 'iterate']
+__all__=['PY_V', 'magicDict', 'dict2magic', 'console', 'getms', 'reprEx', 'strGet', 'fileGet', 'fileAppend', 'fileWrite', 'pathList', 'oGet', 'iterate', 'getScriptName', 'getScriptPath']
 __all__+=['isFunction', 'isInstance', 'isModule', 'isClass', 'isModuleBuiltin', 'isTuple', 'isArray', 'isDict', 'isString', 'isNum']
 
 global PY_V
@@ -130,6 +130,29 @@ def iterate(cb, o):
       res.append(r)
    return res
 
+def getScriptPath(full=False, real=True):
+   """
+   This method return path of current script. If <full> is False return only path, else return path and file name.
+
+   :param bool full:
+   :return str:
+   """
+   if full:
+      return os.path.realpath(sys.argv[0]) if real else sys.argv[0]
+   else:
+      return os.path.dirname(os.path.realpath(sys.argv[0]) if real else sys.argv[0])
+
+def getScriptName(withExt=False):
+   """
+   This method return name of current script. If <withExt> is True return name with extention.
+
+   :param bool withExt:
+   :return str:
+   """
+   if withExt:
+      return os.path.basename(sys.argv[0])
+   else:
+      return os.path.splitext(os.path.basename(sys.argv[0]))[0]
 #========================================
 import decimal
 from types import InstanceType, ModuleType, ClassType, TypeType
@@ -157,7 +180,7 @@ def isNum(var):
 #========================================
 def fileGet(fName, method='r'):
    #get content from file,using $method and if file is ZIP, read file $method in this archive
-   # fName=fName.encode('cp1251')
+   fName=fName.encode('cp1251')
    if not os.path.isfile(fName): return None
    try:
       with open(fName, method) as f: s=f.read()
