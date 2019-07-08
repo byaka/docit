@@ -4,22 +4,10 @@ from string import strip
 from utils import *
 
 class pydoc2api(object):
+   """ Respects PEP-0287 format of doc-strings. """
+
    def __init__(self, pathOrObj, childPath=None):
       self.obj, self.objectPath=self.importChild(pathOrObj, childPath)
-      # obj=obj or ''
-      # self.modulePath=''
-      # if isString(module):
-      #    if '.' in module:
-      #       obj=obj or strGet(module, '.')  #переходим на уровень вглубь
-      #    self.modulePath, module=self.importChild(module)
-      # parts=obj.split('.')
-      # if not parts[0]: parts=parts[1:]
-      # self.objectPath='.'.join(parts)
-      # if len(parts):
-      #    for k in parts:
-      #       if isClass(module): module=module.__dict__[k]  #будем обрабатывать не весь модуль, а только класс
-      #       else: module=getattr(module, k)  #переходим в дочерний модуль
-      # self.obj=module
 
    def importChild(self, pathOrObj, childPath=None):
       childPath=childPath or ''
@@ -76,65 +64,45 @@ class pydoc2api(object):
       s=data[index]
       if s.lower().startswith(':return'):
          # возвращаемое значение
-         s1=strip(strGet(s, ':return', ':') or '')
-         s2=strip(strGet(s, ': ', '') or '')
+         s1=strGet(s, ':return', ':').strip()
+         s2=strGet(s, ': ', '').strip()
          res={'type':s1, 'descr':s2}
       if isFunction(cb): res=cb(res)
       return res
 
-   def parseExample(self, data, index, cb=None):
+   def parseSimpleBlock(self, data, index, blockName, cb=None, defType=''):
       res=False
       s=data[index]
-      if s.lower()==':example:':
-         # примеры
-         s1=[]
-         started=False
+      n=blockName.lower()
+      if s[:2+len(n)].lower() in (':%s:'%n, ':%s '%n):
+         res={
+            'type':strGet(s, ':%s'%n, ':').strip() or defType,
+            'title': strGet(s[1+len(n):], ':', '').strip(),
+            'data':''
+         }
+         # блок информации
+         tArr1=[]
+         started=0
          for ss in data[index+1:]:
-            if not ss and started: break
-            elif not ss: started=True
-            else: s1.append(ss)
-         res='\n'.join(s1)
+            ss=ss.strip()
+            if not ss and started>1: break
+            elif ss and ss[0]==':': break
+            elif started or ss:
+               tArr1.append(ss)
+               started=1
+            # elif started:
+            #    started+=1
+         res['data']='\n'.join(tArr1)
+         if not res['data'].strip(): res=False
       if isFunction(cb): res=cb(res)
       return res
 
-   def parseAttention(self, data, index, cb=None):
+   def parseSimpleLine(self, data, index, lineName, cb=None):
       res=False
       s=data[index]
-      if s.lower()==':attention:':
-         # примеры
-         s1=[]
-         started=False
-         for ss in data[index+1:]:
-            if not ss and started: break
-            elif not ss: started=True
-            else: s1.append(ss)
-         res='\n'.join(s1)
-      if isFunction(cb): res=cb(res)
-      return res
-
-   def parseAuthor(self, data, index, cb=None):
-      res=False
-      s=data[index]
-      if s.lower().startswith(':authors:'):
-         res=strip(strGet(s, ':authors:', '')).split(', ')
-      elif s.lower().startswith(':author:'):
-         res=[strip(strGet(s, ':author:', ''))]
-      if isFunction(cb): res=cb(res)
-      return res
-
-   def parseCopyright(self, data, index, cb=None):
-      res=False
-      s=data[index]
-      if s.lower().startswith(':copyright:'):
-         res=strip(strGet(s, ':copyright:', ''))
-      if isFunction(cb): res=cb(res)
-      return res
-
-   def parseLicense(self, data, index, cb=None):
-      res=False
-      s=data[index]
-      if s.lower().startswith(':license:'):
-         res=strip(strGet(s, ':license:', ''))
+      lineName=':%s:'%lineName.lower()
+      if s.lower().startswith(lineName):
+         res=strGet(s, lineName, '').strip()
       if isFunction(cb): res=cb(res)
       return res
 
@@ -147,11 +115,14 @@ class pydoc2api(object):
          'descr':'',
          'params':[],
          'example':[],
+         'directive':[],
          'return':'',
          'docstr':'',
          'authors':[],
          'copyright':'',
          'attention':[],
+         'file':'',
+         'note':[],
          'license':'',
          'ver_major':getattr(obj, '__ver_major__', 0),
          'ver_minor':getattr(obj, '__ver_minor__', 0),
@@ -162,11 +133,15 @@ class pydoc2api(object):
          'module':getattr(obj, '__module__', ''),
          'inherit':[]
       }
+      if hasattr(obj, '__file__'):
+         res['file']=getattr(obj, '__file__')
+         if res['file'].endswith('.pyc'):
+            res['file']=res['file'][:-1]
       if hasattr(obj, '__author__'):
          res['authors'].append(getattr(obj, '__author__'))
       # определяем от кого унаследовано
       if hasattr(obj, '__bases__'):
-         res['inherit']=[str(s) for s in obj.__bases__]
+         res['inherit']=[o.__name__ for o in obj.__bases__]
       # извлекаем общий комментарий
       if isModule(obj):
          docstr=strGet(inspect.getsource(obj), '"""\n', '\n"""') or ''
@@ -180,7 +155,7 @@ class pydoc2api(object):
       else: f=obj
       if isFunction(f):
          try: inspect.getargspec(f)
-         except: f=None
+         except Exception: f=None
       if isFunction(f):  #! and not inspect.isroutine(f):
          _args, _varargs, _varkwargs, _def=inspect.getargspec(f)
          tArr=[]
@@ -192,6 +167,14 @@ class pydoc2api(object):
          if _varargs is not None: tArr.append('*'+_varargs)
          if _varkwargs is not None: tArr.append('**'+_varkwargs)
          res['data']='%s(%s)'%(obj.__name__, ', '.join(tArr))
+         #
+         if _def:
+            ii=len(_args)-len(_def)
+            _def={_args[ii+i]:v for i,v in enumerate(_def)}
+         else:
+            _def={}
+         argsNames={k:i for i,k in enumerate(_args)}
+         res['argsRaw']={'name':argsNames, 'order':_args, 'defValue':_def}
       else:
          res['data']=f if isString(f) else obj.__name__+'()'
       # извлекаем описание обьекта
@@ -203,15 +186,21 @@ class pydoc2api(object):
             cb=lambda ss: False if ss is False else (res['params'].append(ss) or True)): pass
          elif self.parseReturn(other, i,
             cb=lambda ss: False if ss is False else (res.__setitem__('return', ss) or True)): pass
-         elif self.parseExample(other, i,
+         elif self.parseSimpleBlock(other, i, 'example',
             cb=lambda ss: False if ss is False else (res['example'].append(ss) or True)): pass
-         elif self.parseAttention(other, i,
+         elif self.parseSimpleBlock(other, i, 'attention',
             cb=lambda ss: False if ss is False else (res['attention'].append(ss) or True)): pass
-         elif self.parseAuthor(other, i,
-            cb=lambda ss: False if ss is False else (res.__setitem__('authors', res['authors']+ss) or True)): pass
-         elif self.parseCopyright(other, i,
+         elif self.parseSimpleBlock(other, i, 'note',
+            cb=lambda ss: False if ss is False else (res['note'].append(ss) or True)): pass
+         elif self.parseSimpleBlock(other, i, 'directive',
+            cb=lambda ss: False if ss is False else (res['directive'].append(ss) or True)): pass
+         elif self.parseSimpleLine(other, i, 'author',
+            cb=lambda ss: False if ss is False else (res.__setitem__('authors', res['authors']+ss.split(', ')) or True)): pass
+         elif self.parseSimpleLine(other, i, 'authors',
+            cb=lambda ss: False if ss is False else (res.__setitem__('authors', res['authors']+ss.split(', ')) or True)): pass
+         elif self.parseSimpleLine(other, i, 'copyright',
             cb=lambda ss: False if ss is False else (res.__setitem__('copyright', ss) or True)): pass
-         elif self.parseLicense(other, i,
+         elif self.parseSimpleLine(other, i, 'license',
             cb=lambda ss: False if ss is False else (res.__setitem__('license', ss) or True)): pass
       # если не задано возвращаемое значение для класса, указываем
       if not res['return'] and isClass(obj):
@@ -219,6 +208,7 @@ class pydoc2api(object):
       return dict2magic(res, True)
 
    def methodType(self, obj):
+      # if obj.__name__.startswith('__') and obj.__name__.endswith('__'): return 'magic'  #! добавить поддержку
       if obj.__name__.startswith('__'): return 'special'
       if obj.__name__.startswith('_'): return 'private'
       return 'public'
@@ -230,6 +220,7 @@ class pydoc2api(object):
       if not isClass(obj) and not isModule(obj): return res
       res['tree']={
          'classes':{},
+         'classesOrder':[],
          'methods':{
             'public':{},
             'private':{},
@@ -255,8 +246,8 @@ class pydoc2api(object):
          else:
             m=getattr(v, '__module__', None)
          # проверка, принадлежит ли данная сущность рашрешенным модулям
-         if 'self' in moduleWhitelist and isModule(obj) and m==obj.__name__: pass
-         elif 'self' in moduleWhitelist and not isModule(obj) and m==obj.__module__: pass
+         if moduleWhitelist and 'self' in moduleWhitelist and isModule(obj) and m==obj.__name__: pass
+         elif moduleWhitelist and 'self' in moduleWhitelist and not isModule(obj) and m==obj.__module__: pass
          else:
             if m is None: mArr=[None]
             elif '.' in m:
@@ -286,12 +277,13 @@ class pydoc2api(object):
                   _mAdded.append(m)
             else:
                # защита от дублей
-               s='o_%s.%s'%(m, k)
+               s='o_%s.%s.%s'%(m, obj, k)
                if s in _oCache: continue
                _oCache[s]=v
                # продолжаем обработку
                if isClass(v):
                   res['tree']['classes'][k]=self.summary(v, moduleWhitelist=moduleWhitelist, moduleBlacklist=moduleBlacklist, moduleWhitelistCB=moduleWhitelistCB, moduleBlacklistCB=moduleBlacklistCB, _oCache=_oCache, _mAdded=_mAdded)
+                  res['tree']['classesOrder'].append(k)  #! нужно брать порядок из исходника
                elif isFunction(v):
                   s=self.objInfo(v)
                   t=self.methodType(v)

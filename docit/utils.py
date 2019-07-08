@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys, os, time, datetime, json, inspect
+import sys, os, time, datetime, json, inspect, hashlib
 
 __all__=['PY_V', 'magicDict', 'dict2magic', 'console', 'getms', 'reprEx', 'strGet', 'fileGet', 'fileAppend', 'fileWrite', 'pathList', 'oGet', 'iterate', 'getScriptName', 'getScriptPath']
-__all__+=['isFunction', 'isInstance', 'isModule', 'isClass', 'isModuleBuiltin', 'isTuple', 'isArray', 'isDict', 'isString', 'isNum']
+__all__+=['isFunction', 'isInstance', 'isModule', 'isClass', 'isModuleBuiltin', 'isTuple', 'isArray', 'isDict', 'isString', 'isNum', 'sha256', 'decode_utf8', 'encode_utf8']
 
 global PY_V
 PY_V=float(sys.version[:3])
@@ -64,6 +64,25 @@ console=magicDict({
    'inTerm':consoleIsTerminal,
    'color':consoleColor
 })
+
+def decode_utf8(text):
+   """ Returns the given string as a unicode string (if possible). """
+   if isinstance(text, str):
+      for encoding in (("utf-8",), ("windows-1252",), ("utf-8", "ignore")):
+         try:
+            return text.decode(*encoding)
+         except: pass
+      return text
+   return unicode(text)
+
+def encode_utf8(text):
+   """ Returns the given string as a Python byte string (if possible). """
+   if isinstance(text, unicode):
+      try:
+         return text.encode("utf-8")
+      except:
+         return text
+   return str(text)
 
 def getms(inMS=True):
    """
@@ -129,6 +148,19 @@ def iterate(cb, o):
       elif len(_args)==3: r=cb(s, o, i)
       res.append(r)
    return res
+
+def sha256(text):
+   """
+   This method generate hash with sha1.
+   Length of symbols = 64.
+
+   :param str text:
+   :return str:
+   """
+   try: c=hashlib.sha256(text)
+   except UnicodeEncodeError: c=hashlib.sha256(text.encode('utf8'))
+   s=c.hexdigest()
+   return s
 
 def getScriptPath(full=False, real=True):
    """
