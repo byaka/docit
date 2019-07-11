@@ -50,7 +50,7 @@ def objEscape(o):
 
 def typeBeauty(data):
    data=data.replace(',', '|')
-   data=' | '.join(s.strip() for s in data.split('|') if s.strip())
+   data=', '.join(s.strip() for s in data.split('|') if s.strip())
    return data
 
 def markdown2html(data):
@@ -61,7 +61,7 @@ def params2html(o):
    for o2 in o:
       o2.type=typeBeauty(o2.type)
       o2.descr=markdown2html(o2.descr)
-      res+='<tr> <td><strong>%(name)s</strong></td> <td><code>%(type)s</code></td> <td><samp>%(descr)s</samp></td> </tr>'%o2
+      res+='<tr> <td><strong>%(name)s</strong></td> <td><code>%(type)s</code></td> <td><samp style="white-space: pre-wrap">%(descr)s</samp></td> </tr>'%o2
    if res:
       res='<table class="table table-condensed table-hover table-striped"><tbody> %s </tbody></table>'%res
    return res
@@ -116,7 +116,7 @@ def obj2html(o, type, toc, prefix='', hLevel=4):
       o['return'].descr=markdown2html(o['return'].descr)
       o['return'].type=typeBeauty(o['return'].type)
       res+='<%(h2)s id="%(navName)s___return" class="text-muted">Return <a class="headerlink text-muted" href="#%(navName)s___return" title="Permalink to %(name)s\' returned value">¶</a> </%(h2)s>'%o
-      res+='<code>%(type)s</code> <samp>%(descr)s</samp>'%o['return']
+      res+='<code>%(type)s</code> <samp style="white-space: pre-wrap">%(descr)s</samp>'%o['return']
    # example
    if o.example:
       res+='<%(h2)s id="%(navName)s___example" class="text-muted">Example <a class="headerlink text-muted" href="#%(navName)s___example" title="Permalink to %(name)s\' example">¶</a> </%(h2)s>'%o

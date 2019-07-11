@@ -45,7 +45,6 @@ class pydoc2api(object):
       res=False
       s=data[index]
       if s.lower().lstrip().startswith(':param'):
-         # параметр
          ss=strip(strGet(s, ':param', ':') or '')
          ss=ss.split(' ')
          if len(ss)==1:
@@ -54,8 +53,16 @@ class pydoc2api(object):
          else:
             s1=ss[1]
             s2=ss[0]
-         s3=strip(strGet(s, ': ', '') or '')
-         res={'name':s1, 'type':s2, 'descr':s3}
+         tArr1=[strGet(s, ': ', '').strip() or '']
+         started=0
+         for ss in data[index+1:]:
+            ss=ss.strip()
+            if not ss and started>1: break
+            elif ss and ss[0]==':': break
+            elif started or ss:
+               tArr1.append(ss)
+               started=1
+         res={'name':s1, 'type':s2, 'descr':'\n'.join(tArr1)}
       if isFunction(cb): res=cb(res)
       return res
 
@@ -80,7 +87,6 @@ class pydoc2api(object):
             'title': strGet(s[1+len(n):], ':', '').strip(),
             'data':''
          }
-         # блок информации
          tArr1=[]
          started=0
          for ss in data[index+1:]:
@@ -90,8 +96,6 @@ class pydoc2api(object):
             elif started or ss:
                tArr1.append(ss)
                started=1
-            # elif started:
-            #    started+=1
          res['data']='\n'.join(tArr1)
          if not res['data'].strip(): res=False
       if isFunction(cb): res=cb(res)
