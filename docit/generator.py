@@ -90,7 +90,7 @@ def obj2html(o, type, toc, prefix='', hLevel=4):
    tocCurrent=toc.add('<a href="#%(navName)s" class="btn btn-default btn-xs">%(name)s</a>'%o)
    res=''
    # section
-   res+='<div class="callout callout-%(color)s"> <%(h1)s id="%(navName)s"> <span class="label label-%(color)s">%(type2)s</span> <code class="language-python">%(data)s</code> <a class="headerlink text-%(color)s" href="#%(navName)s" title="Permalink to %(name)s">¶</a> </%(h1)s>'%o
+   res+='<div class="callout callout-%(color)s"> <%(h1)s id="%(navName)s"> <span class="section-type label label-%(color)s">%(type2)s</span> <code class="section-name language-python">%(data)s</code> <a class="headerlink text-%(color)s" href="#%(navName)s" title="Permalink to %(name)s">¶</a> </%(h1)s>'%o
    # description
    if o.descr:
       o.descr=markdown2html(o.descr)
